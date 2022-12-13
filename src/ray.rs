@@ -8,7 +8,7 @@ pub struct Ray {
 
 impl Ray {
 
-	pub fn ray(a: Vec3, b: Vec3) -> Ray {
+	pub fn new(a: Vec3, b: Vec3) -> Ray {
         Ray{
             A: a,
             B: b,
