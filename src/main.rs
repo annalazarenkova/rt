@@ -4,6 +4,7 @@ mod hittable;
 mod hittable_list;
 mod sphere;
 mod camera;
+mod material;
 
 use ray::Ray;
 use vec3::Vec3;
@@ -12,6 +13,7 @@ use hittable_list::*;
 use sphere::Sphere;
 use camera::Camera;
 use rand::prelude::*;
+use material::{Material, random_in_unit_sphere, scatter};
 
   //Construct a ppm file for image data, e.g
     //P3
@@ -29,8 +31,34 @@ pub fn main(){
     println!("P3\n{} {}\n{}", width, height, max_value);
     
     let mut list: Vec<Box<dyn Hittable>> = Vec::new();
-    list.push(Box::new(Sphere::new(Vec3::new(0.0, 0.0, -1.0), 0.5)));
-    list.push(Box::new(Sphere::new(Vec3::new(0.0, -100.5, -1.0), 100.)));
+    list.push(Box::new(Sphere::new(
+        Vec3::new(0.0, 0.0, -1.0),
+        0.5, 
+        Material::Lambertian {
+            albedo: Vec3::new(0.8, 0.3, 0.3)
+        },
+        )));
+    list.push(Box::new(Sphere::new(
+        Vec3::new(0.0, -100.5, -1.0),
+         100.0,
+         Material::Lambertian {
+            albedo: Vec3::new(0.8, 0.8, 0.0)
+        },
+        )));
+    list.push(Box::new(Sphere::new(
+        Vec3::new(1.0, 0.0, -1.0),
+            0.5,
+            Material::Lambertian {
+            albedo: Vec3::new(0.8, 0.6, 0.2)
+        },
+        )));
+    list.push(Box::new(Sphere::new(
+        Vec3::new(-1.0, 0.0, -1.0),
+            0.5,
+            Material::Lambertian {
+            albedo: Vec3::new(0.8, 0.8, 0.8)
+        },
+        )));
     let world = HittableList::new(list);
 
     let cam = Camera::new();
@@ -41,12 +69,11 @@ pub fn main(){
             let mut col = Vec3::default();
 
             for _ in 0..samples {
-                //TODO
                 let u: f32 = (i as f32 + rng.gen::<f32>()) / width as f32;
                 let v: f32 = (j as f32 + rng.gen::<f32>()) / height as f32;
     
                 let r = &cam.get_ray(u, v);
-                col = col + color(&r, &world);
+                col = col + color(&r, &world, 0);
     
             }
 
@@ -67,29 +94,22 @@ pub fn main(){
     // println!("Added v1 and v2: {:?}", v3);
 }
 
-fn color(r: &Ray, world: &HittableList ) -> Vec3 {
+fn color(r: &Ray, world: &HittableList, depth: i32 ) -> Vec3 {
     let mut rec = HitRecord::default();
     
-    if world.hit(r, 0.0, std::f32::MAX, &mut rec) {
-        let target = rec.p() + rec.normal()+random_in_unit_sphere();
-        return color(&Ray::new(rec.p(), target-rec.p()), &world)* 0.5;
+    if let Some(rec) = world.hit(r, 0.001, std::f32::MAX) {
+        let mut scattered = Ray::new(Vec3::default(), Vec3::default());
+        let mut attentuation = Vec3::default();
+
+        if depth < 50 && scatter(&rec.material, r, &rec, &mut attentuation, &mut scattered){
+            return color(&scattered, world, depth+1) * attentuation;
+        } else {
+            return Vec3::new(0.0, 0.0, 0.0);
+        }
     } else{
         let unit_direction = Vec3::unit_vector(&r.direction());
         let t:f32 = 0.5*(unit_direction.y()+1.0);
     
         Vec3::new(1., 1., 1.) * (1.0 -t) + Vec3::new(0.5, 0.7, 1.)*t
     }
-}
-
-fn random_in_unit_sphere() -> Vec3 {
-    let mut p = Vec3::default();
-    let mut rng = rand::thread_rng();
-
-    loop {
-        p = Vec3::new(rng.gen::<f32>(), rng.gen::<f32>(), rng.gen::<f32>())*2.0 - Vec3::new(1.0, 1.0, 1.0);
-        if p.squart_length() < 1.0 {
-            return p;
-        }
-    }
-
 }
